@@ -7,9 +7,31 @@ import (
 	"bufio"
 	"fmt"
 	"sync"
+	_ "github.com/mattn/go-sqlite3"
+	"database/sql"
+	"runtime"
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	db, err := sql.Open("sqlite3", "./sites.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	sqlStmt := `
+	DELETE FROM sites;
+	DROP TABLE sites;
+	CREATE TABLE sites (domain TEXT NOT NULL PRIMARY KEY, code INTEGER);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Printf("%q: %s\n", err, sqlStmt)
+		return
+	}
+
 	httpclient.Defaults(httpclient.Map{
 		httpclient.OPT_USERAGENT: "my awsome httpclient",
 		httpclient.OPT_TIMEOUT: 1,
@@ -24,7 +46,7 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	taskChannel := make(chan string, 75)
+	taskChannel := make(chan string, 1000)
 
 	go func() {
 		var wg sync.WaitGroup
@@ -35,13 +57,14 @@ func main() {
 				wg.Add(1)
 
 				go func() {
-					print("1234")
 					println(domain)
 					res, err := httpclient.Get(domain, map[string]string{})
 
 					if (err == nil) {
+						db.Exec(fmt.Sprintf("INSERT INTO sites(domain, code) values(\"%s\", %d)", domain, res.StatusCode))
 						println(res.StatusCode, err)
 					} else {
+						db.Exec(fmt.Sprintf("INSERT INTO sites(domain, code) values(\"%s\", %d)", domain, -1))
 						fmt.Sprintf("HTTP Error %s", err.Error())
 					}
 
@@ -58,7 +81,6 @@ func main() {
 
 	for scanner.Scan() {
 		domain := fmt.Sprintf("http://%s/wso.php", scanner.Text())
-		println(domain)
 		taskChannel <- domain
 	}
 
