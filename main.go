@@ -6,11 +6,13 @@ import (
 	"log"
 	"bufio"
 	"fmt"
+	"sync"
 )
 
-func main()  {
-	httpclient.Defaults(httpclient.Map {
+func main() {
+	httpclient.Defaults(httpclient.Map{
 		httpclient.OPT_USERAGENT: "my awsome httpclient",
+		httpclient.OPT_TIMEOUT: 1,
 		"Accept-Language": "en-us",
 	})
 
@@ -22,29 +24,35 @@ func main()  {
 
 	scanner := bufio.NewScanner(file)
 
-
-	taskChannel := make(chan string, 10)
-
+	taskChannel := make(chan string, 75)
 
 	go func() {
-		for  {
-			select {
-				case domain := <-taskChannel:
-					go func() {
-						print("1234")
-						println(domain)
-						res, err := httpclient.Get(domain, map[string]string{})
+		var wg sync.WaitGroup
 
-						if (err == nil) {
-							println(res.StatusCode, err)
-						} else {
-							fmt.Sprintf("HTTP Error %s", err.Error())
-						}
-					}()
-				default:
-					fmt.Println("no message received")
-					break
+		for {
+			select {
+			case domain := <-taskChannel:
+				wg.Add(1)
+
+				go func() {
+					print("1234")
+					println(domain)
+					res, err := httpclient.Get(domain, map[string]string{})
+
+					if (err == nil) {
+						println(res.StatusCode, err)
+					} else {
+						fmt.Sprintf("HTTP Error %s", err.Error())
+					}
+
+					wg.Done()
+				}()
+			default:
+				fmt.Println("no message received")
+				break
 			}
+
+			wg.Wait()
 		}
 	}()
 
