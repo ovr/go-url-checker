@@ -53,6 +53,14 @@ func main() {
 	sqlStmt := `
 	DELETE FROM sites;
 	DROP TABLE sites;
+	`
+	db.Exec(sqlStmt)
+	if err != nil {
+		log.Printf("%q: %s\n", err, sqlStmt)
+		return
+	}
+
+	sqlStmt = `
 	CREATE TABLE sites (domain TEXT NOT NULL PRIMARY KEY, code INTEGER);
 	`
 	_, err = db.Exec(sqlStmt)
