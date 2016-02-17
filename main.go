@@ -12,6 +12,35 @@ import (
 	"runtime"
 )
 
+func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB)  {
+	defer wg.Done()
+
+	httpclient.Defaults(httpclient.Map{
+		httpclient.OPT_USERAGENT: "my awsome httpclient",
+		httpclient.OPT_TIMEOUT: 1,
+		"Accept-Language": "en-us",
+	})
+
+	for domain := range domains {
+		println(domain)
+		res, err := httpclient.Get(domain, map[string]string{})
+
+		var statusCode int;
+
+		if (err == nil) {
+			statusCode = res.StatusCode
+			println(res.StatusCode, err)
+		} else {
+			statusCode = -1
+			fmt.Sprintf("HTTP Error %s", err.Error())
+		}
+
+		go func() {
+			db.Exec(fmt.Sprintf("INSERT INTO sites(domain, code) values(\"%s\", %d)", domain, statusCode))
+		}()
+	}
+}
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -32,12 +61,6 @@ func main() {
 		return
 	}
 
-	httpclient.Defaults(httpclient.Map{
-		httpclient.OPT_USERAGENT: "my awsome httpclient",
-		httpclient.OPT_TIMEOUT: 1,
-		"Accept-Language": "en-us",
-	})
-
 	file, err := os.Open("ru_domains_200_ok")
 	if err != nil {
 		log.Fatal(err)
@@ -46,43 +69,23 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	taskChannel := make(chan string, 1000)
+	taskChannel := make(chan string)
 
-	go func() {
-		var wg sync.WaitGroup
 
-		for {
-			select {
-			case domain := <-taskChannel:
-				wg.Add(1)
+	wg := new(sync.WaitGroup)
 
-				go func() {
-					println(domain)
-					res, err := httpclient.Get(domain, map[string]string{})
-
-					if (err == nil) {
-						db.Exec(fmt.Sprintf("INSERT INTO sites(domain, code) values(\"%s\", %d)", domain, res.StatusCode))
-						println(res.StatusCode, err)
-					} else {
-						db.Exec(fmt.Sprintf("INSERT INTO sites(domain, code) values(\"%s\", %d)", domain, -1))
-						fmt.Sprintf("HTTP Error %s", err.Error())
-					}
-
-					wg.Done()
-				}()
-			default:
-				fmt.Println("no message received")
-				break
-			}
-
-			wg.Wait()
-		}
-	}()
+	for i := 0; i < 15; i++ {
+		wg.Add(1)
+		go requestWorker(taskChannel, wg, db)
+	}
 
 	for scanner.Scan() {
 		domain := fmt.Sprintf("http://%s/wso.php", scanner.Text())
 		taskChannel <- domain
 	}
+
+	close(taskChannel)
+	wg.Wait()
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
