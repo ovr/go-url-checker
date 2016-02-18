@@ -29,7 +29,7 @@ func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB)  {
 
 		if (err == nil) {
 			statusCode = res.StatusCode
-			println(res.StatusCode, err)
+			fmt.Println(res.StatusCode, err)
 		} else {
 			statusCode = -1
 			fmt.Sprintf("HTTP Error %s", err.Error())
