@@ -42,12 +42,7 @@ func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB) {
 	}
 }
 
-func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	var threadsCount int;
-	flag.IntVar(&threadsCount, "threads", 15, "Count of used threads (goroutines)")
-
+func initDataBase() *sql.DB {
 	db, err := sql.Open("sqlite3", "./sites.db")
 	if err != nil {
 		log.Fatal(err)
@@ -60,8 +55,8 @@ func main() {
 	`
 	db.Exec(sqlStmt)
 	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		log.Panic("%q: %s\n", err, sqlStmt)
+		os.Exit(1)
 	}
 
 	sqlStmt = `
@@ -69,9 +64,18 @@ func main() {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		log.Panic("%q: %s\n", err, sqlStmt)
+		os.Exit(1)
 	}
+
+
+	return db
+}
+func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	var threadsCount int;
+	flag.IntVar(&threadsCount, "threads", 15, "Count of used threads (goroutines)")
 
 	file, err := os.Open("ru_domains_200_ok")
 	if err != nil {
@@ -80,6 +84,9 @@ func main() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+
+	db := initDataBase()
+
 
 	taskChannel := make(chan string)
 
