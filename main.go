@@ -85,11 +85,21 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	db := initDataBase()
-
-
 	taskChannel := make(chan string, 10000)
+	go func() {
+		for scanner.Scan() {
+			domain := fmt.Sprintf("http://%s/wso.php", scanner.Text())
+			taskChannel <- domain
+		}
 
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+		
+		close(taskChannel)
+	}()
+
+	db := initDataBase()
 	wg := new(sync.WaitGroup)
 
 	for i := 0; i < threadsCount; i++ {
@@ -97,15 +107,5 @@ func main() {
 		go requestWorker(taskChannel, wg, db)
 	}
 
-	for scanner.Scan() {
-		domain := fmt.Sprintf("http://%s/wso.php", scanner.Text())
-		taskChannel <- domain
-	}
-
-	close(taskChannel)
 	wg.Wait()
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
 }
