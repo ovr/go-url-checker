@@ -10,9 +10,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"database/sql"
 	"runtime"
+	"flag"
 )
 
-func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB)  {
+func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB) {
 	defer wg.Done()
 
 	httpclient.Defaults(httpclient.Map{
@@ -43,6 +44,9 @@ func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB)  {
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	var threadsCount int;
+	flag.IntVar(&threadsCount, "threads", 15, "Count of used threads (goroutines)")
 
 	db, err := sql.Open("sqlite3", "./sites.db")
 	if err != nil {
@@ -79,10 +83,9 @@ func main() {
 
 	taskChannel := make(chan string)
 
-
 	wg := new(sync.WaitGroup)
 
-	for i := 0; i < 15; i++ {
+	for i := 0; i < threadsCount; i++ {
 		wg.Add(1)
 		go requestWorker(taskChannel, wg, db)
 	}
