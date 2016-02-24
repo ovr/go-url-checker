@@ -88,7 +88,7 @@ func main() {
 	db := initDataBase()
 
 
-	taskChannel := make(chan string)
+	taskChannel := make(chan string, 10000)
 
 	wg := new(sync.WaitGroup)
 
