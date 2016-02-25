@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/ddliu/go-httpclient"
 	"os"
 	"log"
 	"bufio"
@@ -11,29 +10,24 @@ import (
 	"database/sql"
 	"runtime"
 	"flag"
+	"net/http"
 )
 
 func requestWorker(domains chan string, wg *sync.WaitGroup, db *sql.DB) {
 	defer wg.Done()
 
-	httpclient.Defaults(httpclient.Map{
-		httpclient.OPT_USERAGENT: "my awsome httpclient",
-		httpclient.OPT_TIMEOUT: 1,
-		"Accept-Language": "en-us",
-	})
+	httpClient := &http.Client{}
 
 	for domain := range domains {
-		println(domain)
-		res, err := httpclient.Get(domain, map[string]string{})
-
+		response, err := httpClient.Get(domain)
 		var statusCode int;
 
 		if (err == nil) {
-			statusCode = res.StatusCode
-			fmt.Println(res.StatusCode, err)
+			statusCode = response.StatusCode
+			log.Println(fmt.Sprintf("[%s] %d", domain, response.StatusCode))
 		} else {
 			statusCode = -1
-			fmt.Sprintf("HTTP Error %s", err.Error())
+			log.Println(fmt.Sprintf("[%s] HTTP Error %s", domain, err.Error()))
 		}
 
 		go func() {
@@ -95,7 +89,7 @@ func main() {
 		if err := scanner.Err(); err != nil {
 			log.Fatal(err)
 		}
-		
+
 		close(taskChannel)
 	}()
 
